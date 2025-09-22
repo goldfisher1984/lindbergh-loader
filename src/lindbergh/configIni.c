@@ -146,6 +146,7 @@ void createDefaultIni(const char *filePath)
     fprintf(file, "# Sets the IP address of each cabinet for network play in 2Spicy\n");
     fprintf(file, "2SPICY_IP_CAB1 = \"192.168.1.2\"\n2SPICY_IP_CAB2 = \"192.168.1.3\"\n\n");
     fprintf(file, "# Sets the IP address for SRTV\nSRTV_IPADDRESS = \"192.168.1.2\"\n\n");
+    fprintf(file, "# Sets the subnet of your Network Interface Card\nsubnet = %s\n\n", defaults.net_subnet);
 
     // [EVDEV]
     fprintf(file, "[EVDEV]\n");
@@ -192,6 +193,20 @@ void createDefaultIni(const char *filePath)
 
     for (int x = 1; x < 9; x++)
         fprintf(file, "#ANALOGUE_DEADZONE_%d = 0 0 0\n", x);
+
+    // [DNS]
+    fprintf(file, "[dns]\n");
+    fprintf(file, "# If true, the loader will reply dns request to the game\n");
+    fprintf(file, "enable = %s\n\n", defaults.enable_dns ? "true" : "false");
+    fprintf(file, "# the hostname or IP address of the server you wish to use here\n");
+    fprintf(file, "default = %s\n\n", defaults.dns_default);
+    fprintf(file, "# the router address of the server you wish to use here, should start with 10\n");
+    fprintf(file, "router = %s\n\n", defaults.dns_router);
+
+    //[keychip]
+    fprintf(file, "[keychip]\n");
+    fprintf(file, "# The emulated keychip serial number\n");
+    fprintf(file, "id = %s\n\n", defaults.keychip);
 
     fprintf(file, "\n");
     fclose(file);

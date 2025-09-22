@@ -198,20 +198,3 @@ char *strstr(const char *haystack, const char *needle)
     }
     return _strstr(haystack, needle);
 }
-
-int gethostbyname_r(const char *name, struct hostent *ret, char *buf, size_t buflen, struct hostent **result, int *h_errnop)
-{
-    int (*_gethostbyname_r)(const char *name, struct hostent *ret, char *buf, size_t buflen, struct hostent **result, int *h_errnop) =
-        dlsym(RTLD_NEXT, "gethostbyname_r");
-
-    void *addr = __builtin_return_address(0);
-    if (gId == QUIZ_AXA && addr == (void *)0x0832609d)
-    {
-        ret = 0;
-        buf[0] = '\0';
-        result = 0;
-        h_errnop = 0;
-        return -1;
-    }
-    return _gethostbyname_r(name, ret, buf, buflen, result, h_errnop);
-}

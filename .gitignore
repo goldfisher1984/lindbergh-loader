@@ -11,3 +11,4 @@ src/libxdiff/xdiff/*.o
 src/libxdiff/*.a
 src/libkswapapi/*.o
 src/libsegaapi/*.o
+/.vs

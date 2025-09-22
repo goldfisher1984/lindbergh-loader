@@ -25,15 +25,18 @@
 #define INITIALD_4_REVC 0x50f1c269                           // DVP-0019C
 #define INITIALD_4_REVD 0xba380f8a                           // DVP-0019D
 #define INITIALD_4_REVG 0x6cb19701                           // DVP-0019G
+#define INITIALD_4_REVG_SERVERBOX 0x60496EEA                 // DVP-0019G
 #define INITIALD_4_EXP_REVB 0xd0c64f3                        // DVP-0030B
 #define INITIALD_4_EXP_REVC 0x65ea22e3                       // DVP-0030C
 #define INITIALD_4_EXP_REVD 0x62cc73a9                       // DVP-0030D
 #define INITIALD_5_JAP_REVA 0xb3183112                       // DVP-0070A
+#define INITIALD_5_JAP_REVA_SERVERBOX 0x5fd379cd             // DVP-0070A
 #define INITIALD_5_JAP_REVC 0xda04e5e0                       // DVP-0070C   
 #define INITIALD_5_JAP_REVF 0xfc3dc85d                       // DVP-0070F
 #define INITIALD_5_EXP 0x701b88cf                            // DVP-0075
 #define INITIALD_5_EXP_20 0x77c6b58b                         // DVP-0084
 #define INITIALD_5_EXP_20A 0xd4910e75                        // DVP-0084A
+#define INITIALD_5_EXP_20A_SERVERBOX 0xcf40a9c2              // DVP-0084A
 #define LETS_GO_JUNGLE 0xb1c8c901                            // DVP-0011
 #define LETS_GO_JUNGLE_REVA 0xc697c4fb                       // DVP-0011A
 #define LETS_GO_JUNGLE_SPECIAL 0x240beedc                    // DVP-0036A
@@ -132,6 +135,7 @@ typedef enum
     GROUP_ID4_EXP,
     GROUP_ID4_JAP,
     GROUP_ID5,
+    GROUP_IDAS_SB,
     GROUP_LGJ,
     GROUP_OUTRUN,
     GROUP_OUTRUN_TEST,
@@ -324,6 +328,11 @@ typedef struct
     float whiteBorderPercentage;
     float blackBorderPercentage;
     int borderEnabled;
+    int enable_dns;
+    char net_subnet[19];
+    char dns_default[255];
+    char dns_router[16];
+    char keychip[16];
 } EmulatorConfig;
 
 int initConfig(const char* configFilePath);

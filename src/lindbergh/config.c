@@ -187,6 +187,11 @@ void setDefaultValues(EmulatorConfig *cfg)
     cfg->whiteBorderPercentage = 0.02f;
     cfg->blackBorderPercentage = 0.0f;
     cfg->inputMode = 1;
+    cfg->enable_dns = 0;
+    strcpy(cfg->net_subnet, "0.0.0.0");
+    strcpy(cfg->dns_default, "0.0.0.0");
+    strcpy(cfg->dns_router, "10.0.0.254");
+    strcpy(cfg->keychip, "AAGX-01A99999999");
 }
 
 static const char *getValue(const IniConfig *ini, const char *sectionName, const char *key)
@@ -403,6 +408,7 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
     getString(ini, "Network", "2SPICY_IP_CAB1", config->tooSpicyIpCab1, 16);
     getString(ini, "Network", "2SPICY_IP_CAB2", config->tooSpicyIpCab2, 16);
     getString(ini, "Network", "SRTV_IPADDRESS", config->srtvIP, 16);
+    getString(ini, "Network", "subnet", config->net_subnet, 19);
 
     // [EVDEV]
     getString(ini, "EVDEV", "TEST_BUTTON", config->arcadeInputs.test, INPUT_STRING_LENGTH);
@@ -462,6 +468,13 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
             }
         }
     }
+    // [DNS]
+    config->enable_dns = getInt(ini, "dns", "enable", config->enable_dns);
+    getString(ini, "dns", "default", config->dns_default, 16);
+    getString(ini, "dns", "router", config->dns_router, 16);
+
+    //[ keychip]
+    getString(ini, "keychip", "id", config->keychip, 16);
 }
 
 int initConfig(const char *configFilePath)

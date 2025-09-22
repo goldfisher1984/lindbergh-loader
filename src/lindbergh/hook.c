@@ -39,6 +39,7 @@
 #include "securityBoard.h"
 #include "shaderCache.h"
 #include "touchScreen.h"
+#include "dns.h"
 
 #define HOOK_FILE_NAME "/dev/zero"
 
@@ -73,6 +74,9 @@ char *configFolder = {0};
 static int callback(struct dl_phdr_info *info, size_t size, void *data);
 
 uint16_t basePortAddress = 0xFFFF;
+
+extern struct dns_hook_entry *dns_hook_entries;
+extern int dns_hook_nentries;
 
 /**
  * @brief Signal handler for SIGSEGV.
@@ -1264,8 +1268,8 @@ int ioctl(int fd, unsigned long int request, ...)
     }
 
     // Replace "eth0" with your interface name set in the config file.
-    if ((gGrp == GROUP_ID4_EXP || gId == INITIALD_5_EXP_20 || gId == INITIALD_5_EXP_20A ) &&
-        (request == SIOCGIFFLAGS || request == SIOCGIFADDR) && getConfig()->enableNetworkPatches && strcmp(getConfig()->nicName, "") != 0)
+    if ((gGrp == GROUP_ID4_EXP || gGrp == GROUP_ID5 || gGrp == GROUP_IDAS_SB) &&
+        getConfig()->enableNetworkPatches && strcmp(getConfig()->nicName, "") != 0)
     {
         struct ifreq *ifr = (struct ifreq *)argp;
         strncpy(ifr->ifr_name, getConfig()->nicName, IFNAMSIZ);
@@ -1660,4 +1664,24 @@ struct tm *gmtime_r(const time_t *timep, struct tm *result)
         return res;
     }
     return _gmtime_r(timep, result);
+}
+
+int gethostbyname_r(const char *name, struct hostent *result_buf, char *buf, size_t buflen, struct hostent **result, int *h_errnop)
+{
+    int ret = 0;
+    int i;
+    const struct dns_hook_entry *pos;
+
+    bool (*_gethostbyname_r)(const char *name, struct hostent *result_buf, char *buf, size_t buflen, struct hostent **result,
+                             int *h_errnop) = dlsym(RTLD_NEXT, "gethostbyname_r");
+    for (i = 0; i < dns_hook_nentries; i++)
+    {
+        pos = &dns_hook_entries[i];
+        if (match_domain(name, pos->from))
+        {
+            name = pos->to;
+        }
+    }
+    ret = (int)_gethostbyname_r(name, result_buf, buf, buflen, result, h_errnop);
+    return ret;
 }

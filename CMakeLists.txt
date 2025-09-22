@@ -28,7 +28,7 @@ set(LIBSEGAAPI_LINKER_FLAGS -m32 -Wl,-Bstatic -lFAudio -Wl,-Bdynamic -lm)
 set(SHARED_LINKER_FLAGS -m32 -Wl,-z,defs -rdynamic -static-libstdc++ -static-libgcc -lc -ldl -lGL -lglut -lX11 -lXcursor -lSDL3 -lSDL3_ttf -lSDL3_image -ludev -lm -lpthread -shared -lstdc++ -nostdlib)
 
 # Build executable for lindbergh
-add_executable(lindyloader src/lindbergh/lindbergh.c src/lindbergh/iniParser.c src/lindbergh/sdlInput.c src/lindbergh/controlIniGen.c src/lindbergh/log.c src/lindbergh/jvs.c src/lindbergh/config.c src/lindbergh/evdevInput.c src/lindbergh/gameData.c src/lindbergh/configIni.c)
+add_executable(lindyloader src/lindbergh/lindbergh.c src/lindbergh/iniParser.c src/lindbergh/sdlInput.c src/lindbergh/controlIniGen.c src/lindbergh/log.c src/lindbergh/jvs.c src/lindbergh/config.c src/lindbergh/evdevInput.c src/lindbergh/gameData.c src/lindbergh/configIni.c "src/lindbergh/dns.c" "src/lindbergh/dns.h")
 set_target_properties(lindyloader PROPERTIES OUTPUT_NAME "lindbergh")
 # set_target_properties(lindyloader PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} LINK_FLAGS "-m32 -lm -lSDL3")
 target_compile_options(lindyloader PRIVATE ${LINDBERGH_EXE})
@@ -36,28 +36,28 @@ target_compile_options(lindyloader PRIVATE ${LINDBERGH_EXE})
 target_link_libraries(lindyloader PRIVATE lindbergh m SDL3)
 
 # Build static library libxdiff.a with its own flags
-add_library(xdiff STATIC ${XDIFF_SRCS})
+add_library(xdiff STATIC ${XDIFF_SRCS} "src/lindbergh/dns.c" "src/lindbergh/dns.h")
 set_target_properties(xdiff PROPERTIES OUTPUT_NAME xdiff ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY} LINK_FLAGS "-m32")
 target_compile_options(xdiff PRIVATE ${LIBXDIFF_C_FLAGS})
 
 # Build shared library lindbergh.so
-add_library(lindbergh SHARED ${LIND_OBJS})
+add_library(lindbergh SHARED ${LIND_OBJS} "src/lindbergh/dns.c" "src/lindbergh/dns.h")
 set_target_properties(lindbergh PROPERTIES PREFIX "")
 target_link_libraries(lindbergh xdiff ${SHARED_LINKER_FLAGS})
 target_compile_options(lindbergh PRIVATE ${LINDBERGH_C_FLAGS})
 
 # Build shared library libsegaapi.so
-add_library(segaapi SHARED src/libsegaapi/libsegaapi.c)
+add_library(segaapi SHARED src/libsegaapi/libsegaapi.c "src/lindbergh/dns.c" "src/lindbergh/dns.h")
 target_link_libraries(segaapi ${LIBSEGAAPI_LINKER_FLAGS})
 target_compile_options(segaapi PRIVATE ${LIBSEGAAPI_C_FLAGS})
 
 # Build shared library libkswapapi.so
-add_library(kswapapi SHARED src/libkswapapi/libkswapapi.c)
+add_library(kswapapi SHARED src/libkswapapi/libkswapapi.c "src/lindbergh/dns.c" "src/lindbergh/dns.h")
 target_link_libraries(kswapapi ${SHARED_LINKER_FLAGS})
 target_compile_options(kswapapi PRIVATE ${LINDBERGH_C_FLAGS})
 
 # Build shared library libposixtime.so
-add_library(posixtime SHARED src/libposixtime/libposixtime.c)
+add_library(posixtime SHARED src/libposixtime/libposixtime.c "src/lindbergh/dns.c" "src/lindbergh/dns.h")
 set_target_properties(posixtime PROPERTIES OUTPUT_NAME posixtime LINK_FLAGS "-m32")
 add_custom_command(TARGET posixtime POST_BUILD
     COMMAND ln -s -f libposixtime.so ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libposixtime.so.1

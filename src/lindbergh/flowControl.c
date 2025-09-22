@@ -126,6 +126,11 @@ int stubRetOne()
     return 1;
 }
 
+int stubRetThree()
+{
+    return 3;
+}
+
 int stubRetMinusOne()
 {
     return -1;

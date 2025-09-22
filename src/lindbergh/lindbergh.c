@@ -101,6 +101,7 @@ uint32_t cleanElfCRC32[] = {
     0x3A5EEC69, // DVP-0063  | hodextestR.elf
     0x81E02850, // DVP-0069  | ramboM.elf
     0xE4F202BB, // DVP-0070A | id5.elf
+    0xAEEE6BEF, // DVP-0070A | id5.elf (ServerBox)
     0x400C09CD, // DVP-0070C | id5.elf
     0x2E6732A3, // DVP-0070F | id5.elf
     0xF99A3CDB, // DVP-0075  | id5.elf

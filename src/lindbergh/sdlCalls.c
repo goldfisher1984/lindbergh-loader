@@ -72,7 +72,7 @@ int initSDL()
         return 1;
     }
 
-    if (gGrp == GROUP_OUTRUN_TEST)
+    if (gGrp == GROUP_OUTRUN_TEST || gGrp == GROUP_IDAS_SB)
     {
         if (!TTF_Init())
         {

@@ -9,6 +9,7 @@ void replaceCallAtAddress(size_t address, void *function);
 void stubReturn();
 int stubRetZero();
 int stubRetOne();
+int stubRetThree();
 int stubRetMinusOne();
 char stubRetZeroChar();
 void *trampolineHook(void *target, void *replacement, size_t saveSize);
