@@ -18,8 +18,22 @@ jobs:
         name: version-file
         path: src/lindbergh/
 
+    - name: Cache APT packages
+      uses: actions/cache@v4
+      with:
+        path: /var/cache/apt/archives
+        key: ${{ runner.os }}-apt-${{ hashFiles('**/install-packages.sh') }}
+        restore-keys: |
+          ${{ runner.os }}-apt-
+
     - name: Install Packages
       run: scripts/appimage/install-packages.sh
+
+    - name: Pack ID Libs
+      run: scripts/appimage/id-libs.sh
+
+    - name: Install Kisak
+      run: scripts/appimage/install-kisak.sh
 
     - name: Build Deps
       run: scripts/appimage/build-deps.sh
@@ -33,6 +47,15 @@ jobs:
         make
         scripts/appimage/make-appimage.sh
 
+    - name: Compress build directory
+      run: tar -czvf build.tar.gz -C ./build .
+
+    - name: Upload build.tar.gz artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: "linux-build" 
+        path: "build.tar.gz"
+
     - name: Upload AppImage
       uses: actions/upload-artifact@v4
       with:
@@ -42,7 +65,8 @@ jobs:
     - name: Upload SDL3 and FAudio
       uses: actions/upload-artifact@v4
       with:
-        name: SDL3-FAudio
+        name: SDL3-FAudio-ID
         path: |
           libs/libs.tar
           libs/includes.tar
+          libs/lib32ID.tar

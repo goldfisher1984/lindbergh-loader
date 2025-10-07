@@ -8,6 +8,7 @@
 #include <libgen.h>
 #include <sys/stat.h>
 
+#include "config.h"
 #include "configIni.h"
 #include "evdevInput.h"
 #include "log.h"
@@ -123,6 +124,34 @@ uint32_t cleanElfCRC32[] = {
 
 int cleanElfCRC32Count = sizeof(cleanElfCRC32) / sizeof(uint32_t);
 
+bool isIDGame()
+{
+    switch (elf_crc)
+    {
+        case 0x22905D60: // DVP-0019A | id4.elf
+        case 0x43582D48: // DVP-0019B | id4.elf
+        case 0x2D2A18C1: // DVP-0019C | id4.elf
+        case 0x9BFD0D98: // DVP-0019D | id4.elf
+        case 0x9CF9BBCC: // DVP-0019G | id4.elf
+        case 0xC345E213: // DVP-0030B | id4.elf
+        case 0x98E6A516: // DVP-0030C | id4.elf
+        case 0xF67365C9: // DVP-0030D | id4.elf
+        case 0xE4F202BB: // DVP-0070A | id5.elf
+        case 0x400C09CD: // DVP-0070C | id5.elf
+        case 0x2E6732A3: // DVP-0070F | id5.elf
+        case 0xF99A3CDB: // DVP-0075  | id5.elf
+        case 0x8DF6BBF9: // DVP-0084  | id5.elf
+        case 0x2AF8004E: // DVP-0084A | id5.elf
+        {
+            return true;
+        }
+        default:
+        {
+            return false;
+        }
+    }
+}
+
 uint32_t calcCrc32(uint32_t crc, uint8_t data)
 {
     crc ^= data;
@@ -205,12 +234,11 @@ void isCleanElf(char *command)
         exit(EXIT_FAILURE);
     }
 
-    uint32_t crc;
-    if (calculateCRC32inChunks(elfName, &crc) != 0)
+    if (calculateCRC32inChunks(elfName, &elf_crc) != 0)
         return;
 
-    crc = crc ^ 0xFFFFFFFF;
-    if (!lookupCrcTable(crc))
+    elf_crc = elf_crc ^ 0xFFFFFFFF;
+    if (!lookupCrcTable(elf_crc))
     {
         printf("\033[1;31m");
         printf("Warning: The ELF you are running is not Clean and might cause unwanted behavior.\n");
@@ -306,11 +334,19 @@ void setEnvironmentVariables(const char *ldLibPath, const char *originalDir, con
     char *currentLibraryPath = getenv("LD_LIBRARY_PATH");
     char newLdLibPath[MAX_PATH_LENGTH * 3] = "";
 
-    if (currentLibraryPath && strlen(currentLibraryPath) > 0)
-        snprintf(newLdLibPath, sizeof(newLdLibPath), "%s:", currentLibraryPath);
+    char *appImgRoot = getenv("APP_IMG_ROOT");
+    if (getenv("APP_IMG_ROOT") && isIDGame()) // If appimage and ID game.
+    {
+        strcat(newLdLibPath, appImgRoot);
+        strcat(newLdLibPath, "/usr/lib32ID:");
+        strcat(newLdLibPath, currentLibraryPath);
+    }
+    else if (currentLibraryPath && strlen(currentLibraryPath) > 0)
+    {
+        snprintf(newLdLibPath, sizeof(newLdLibPath), "%s", currentLibraryPath);
+    }
 
     char *tmpLibPath = dirname(strdup(ldLibPath));
-
     if (strcmp(tmpLibPath, ".") != 0)
     {
         strcat(newLdLibPath, ":");
@@ -344,7 +380,7 @@ void setEnvironmentVariables(const char *ldLibPath, const char *originalDir, con
             log_error("The loader will use the default configuration.");
             confFilePath = "";
         }
-        else if(!fileExists(confFilePath))
+        else if (!fileExists(confFilePath))
         {
             log_error("The file \'%s\' does not exist, will be using default config.", confFilePath);
             confFilePath = "";
@@ -396,6 +432,7 @@ void setEnvironmentVariables(const char *ldLibPath, const char *originalDir, con
 
     if (zink)
     {
+        setenv("LIBGL_KOPPER_DRI2", "1", 1);
         setenv("MESA_LOADER_DRIVER_OVERRIDE", "zink", 1);
     }
 
@@ -405,13 +442,17 @@ void setEnvironmentVariables(const char *ldLibPath, const char *originalDir, con
         setenv("__NV_PRIME_RENDER_OFFLOAD", "1", 1);
     }
 
-    char *appImgRoot = getenv("APP_IMG_ROOT");
+    char libglDriPath[MAX_PATH_LENGTH] = {0};
     if (appImgRoot != NULL)
     {
-        char libglDriPath[MAX_PATH_LENGTH];
-        sprintf(libglDriPath, "%s/usr/lib32/dri", appImgRoot);
-        setenv("LIBGL_DRIVERS_PATH", libglDriPath, 1);
+        if (isIDGame())
+            snprintf(libglDriPath, sizeof(libglDriPath), "%s/usr/lib32ID/dri", appImgRoot);
+        else
+            snprintf(libglDriPath, sizeof(libglDriPath), "%s/usr/lib32/dri", appImgRoot);
     }
+
+    if (libglDriPath[0] != '\0')
+        setenv("LIBGL_DRIVERS_PATH", libglDriPath, 1);
 }
 
 void printUsage(char *programName)
@@ -429,7 +470,7 @@ void printUsage(char *programName)
     printf("  --help             | -h  Displays this usage text\n");
     printf("  --config           | -c  Specifies configuration ini file path\n");
     printf("  --controls         | -o  Specifies controls ini file path\n");
-    printf("  --controlsdb       | -d  Specifies gamecontrollerdb.txt file path\n");
+    printf("  --controllerdb     | -d  Specifies gamecontrollerdb.txt file path\n");
     printf("  --gamepath         | -g  Specifies game path without ELF name\n");
     printf("  --create           | -C  Creates a default config or controls file. Use '--create --help' for more info.\n");
 }
@@ -515,7 +556,7 @@ int main(int argc, char *argv[])
     {
         return listSdlControllers();
     }
-    
+
     if (argc > 1 && (strcmp(argv[1], "--create") == 0 || strcmp(argv[1], "-C") == 0))
     {
         if (argc < 3)
@@ -536,7 +577,6 @@ int main(int argc, char *argv[])
         char *filename = NULL;
         char *argCopyForDirname = NULL;
         char *argCopyForBasename = NULL;
-
 
         if (strcmp(subOption, "config") != 0 && strcmp(subOption, "controls") != 0)
         {
@@ -577,8 +617,10 @@ int main(int argc, char *argv[])
             if (!dot || strcmp(dot, ".ini") != 0)
             {
                 log_error("Invalid filename: '%s'. Must have .ini extension.\n", filename);
-                if(argCopyForDirname) free(argCopyForDirname);
-                if(argCopyForBasename) free(argCopyForBasename);
+                if (argCopyForDirname)
+                    free(argCopyForDirname);
+                if (argCopyForBasename)
+                    free(argCopyForBasename);
                 return EXIT_FAILURE;
             }
         }
@@ -586,8 +628,10 @@ int main(int argc, char *argv[])
         if (!dirExists(path))
         {
             log_error("Output directory does not exist: %s\n", path);
-            if(argCopyForDirname) free(argCopyForDirname);
-            if(argCopyForBasename) free(argCopyForBasename);
+            if (argCopyForDirname)
+                free(argCopyForDirname);
+            if (argCopyForBasename)
+                free(argCopyForBasename);
             return EXIT_FAILURE;
         }
 
@@ -614,8 +658,10 @@ int main(int argc, char *argv[])
             log_info("Successfully created controls file at %s\n", finalPath);
         }
 
-        if(argCopyForDirname) free(argCopyForDirname);
-        if(argCopyForBasename) free(argCopyForBasename);
+        if (argCopyForDirname)
+            free(argCopyForDirname);
+        if (argCopyForBasename)
+            free(argCopyForBasename);
 
         return EXIT_SUCCESS;
     }
@@ -688,7 +734,7 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--controlsdb") == 0)
+        if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--controllerdb") == 0)
         {
             if (i + 1 >= argc)
             {
@@ -836,9 +882,6 @@ int main(int argc, char *argv[])
             printf("You might not get sound because libopenal.so.0 was not found.\n");
         }
     }
-    
-    setEnvironmentVariables(libPath, originalDir, targetedGameDir, zink, nvidia, extConfigPath, extControlsPath, extControlsDbPath,
-                            libOpenal);
 
     if (segaboot)
     {
@@ -857,6 +900,9 @@ int main(int argc, char *argv[])
     }
 
     isCleanElf(command);
+
+    setEnvironmentVariables(libPath, originalDir, targetedGameDir, zink, nvidia, extConfigPath, extControlsPath, extControlsDbPath,
+                            libOpenal);
 
     if (gdb)
     {
