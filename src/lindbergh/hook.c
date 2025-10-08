@@ -1269,7 +1269,8 @@ int ioctl(int fd, unsigned long int request, ...)
 
     // Replace "eth0" with your interface name set in the config file.
     if ((gGrp == GROUP_ID4_EXP || gGrp == GROUP_ID5 || gGrp == GROUP_IDAS_SB) &&
-        getConfig()->enableNetworkPatches && strcmp(getConfig()->nicName, "") != 0)
+        (request == SIOCGIFFLAGS || request == SIOCGIFADDR || request == SIOCGIFNETMASK) && getConfig()->enableNetworkPatches &&
+        strcmp(getConfig()->nicName, "") != 0)
     {
         struct ifreq *ifr = (struct ifreq *)argp;
         strncpy(ifr->ifr_name, getConfig()->nicName, IFNAMSIZ);
