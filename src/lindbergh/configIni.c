@@ -1,4 +1,4 @@
-#include "configIni.h"
+﻿#include "configIni.h"
 #include "config.h"
 #include "log.h"
 #include <stdio.h>
@@ -40,6 +40,9 @@ void createDefaultIni(const char *filePath)
     fprintf(file, "[Input]\n");
     fprintf(file, "# Sets the Input Mode (1: SDL, 2: EVDEV\n");
     fprintf(file, "INPUT_MODE = %d\n\n", defaults.inputMode);
+    fprintf(file, "# Set to true to use wheel input device\n");
+    fprintf(file, "use_wheel = %s\n\n", defaults.use_wheel ? "true" : "false");
+
 
     // [Emulation]
     fprintf(file, "[Emulation]\n");
@@ -207,6 +210,17 @@ void createDefaultIni(const char *filePath)
     fprintf(file, "[keychip]\n");
     fprintf(file, "# The emulated keychip serial number\n");
     fprintf(file, "id = %s\n\n", defaults.keychip);
+
+    //[FFB]
+    fprintf(file, "[FFB]\n");
+    fprintf(file, "Constant force strength, used for centering spring effect.\n");
+    fprintf(file, "constantForceStrength = %d\n\n", defaults.constant_force_strength);
+    fprintf(file, "Damper strength, used for steering wheel damper effect.\n");
+    fprintf(file, "damperStrength = %d\n\n", defaults.damper_strength);
+    fprintf(file, "Rumble strength, used for road surface effects.\n");
+    fprintf(file, "rumbleStrength = %d\n\n", defaults.rumble_strength);
+    fprintf(file, "Rumble duration factor from ms to µs, used to scale the duration of the rumble effect.\n");
+    fprintf(file, "rumbleDuration = %d\n\n", defaults.rumble_duration);
 
     fprintf(file, "\n");
     fclose(file);

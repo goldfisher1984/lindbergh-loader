@@ -333,6 +333,11 @@ typedef struct
     char dns_default[255];
     char dns_router[16];
     char keychip[16];
+    int use_wheel;
+    int constant_force_strength;
+    int damper_strength;
+    int rumble_strength;
+    int rumble_duration;
 } EmulatorConfig;
 
 int initConfig(const char* configFilePath);

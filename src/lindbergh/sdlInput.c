@@ -1,4 +1,4 @@
-#include <GL/gl.h>
+﻿#include <GL/gl.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_init.h>
@@ -6,6 +6,7 @@
 #include <SDL3/SDL_keyboard.h>
 #include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_scancode.h>
+#include <SDL3/SDL_gamepad.h>
 #include <libgen.h>
 #include <math.h>
 #include <stdbool.h>
@@ -22,6 +23,7 @@
 #include "jvs.h"
 #include "log.h"
 #include "touchScreen.h"
+#include "ffb.h"
 
 // --- GLOBAL STATE AND MAPPINGS ---
 ActionState gActionStates[MAX_ENTITIES][NUM_LOGICAL_ACTIONS] = {0};
@@ -37,6 +39,16 @@ int gLastGunYDir[MAX_ENTITIES];
 float gShakeValue[MAX_ENTITIES];
 float gShakeIncreaseRate = 10.0f;
 float gShakeDecayRate = 0.95f;
+float gSensitivity = 1.0f;
+
+static void sdl_ffb_damper(uint8_t force);
+static void sdl_ffb_rumble(uint8_t force, uint8_t period);
+static void sdl_ffb_constant_force(uint8_t direction, uint8_t force);
+static void sdl_ffb_toggle(bool active);
+/* per-device stored constant-effect id (-1 == none) */
+static int sdl_haptic_constant_effect_id = -1;
+static int sdl_haptic_rumble_effect_id = -1;
+static int sdl_haptic_damper_effect_id = -1;
 
 // --- NEW GLOBALS FOR GUID MAPPING ---
 char gPlayerGUIDs[MAX_PLAYERS + 1][33]; // +1 for SYSTEM, 33 for 32 chars + null terminator
@@ -178,6 +190,7 @@ extern const size_t gDefaultMahjongBindingsSize;
 
 // Forward declaration
 void saveGuidsToIni();
+
 
 /**
  * @brief Initializes the entire SDL input system.
@@ -379,6 +392,16 @@ int initSdlInput(char *controlsPath)
 
     // Apply any final game-specific mapping overrides.
     remapPerGame();
+
+    if (gameType == DRIVING)
+    {
+        static struct ffb_ops ops;
+        ops.req_toggle = sdl_ffb_toggle;
+        ops.req_constant_force = sdl_ffb_constant_force;
+        ops.req_rumble = sdl_ffb_rumble;
+        ops.req_damper = sdl_ffb_damper;
+        ffb_init(&ops);
+    }
 
     sdlInputInitialized = true;
     return 0;
@@ -1177,6 +1200,11 @@ void loadGlobalConfig(const IniConfig *ini)
                     gShakeDecayRate = atof(value);
                     printf("  Set ShakeDecayRate to %f\n", gShakeDecayRate);
                 }
+                else if (strcmp(key, "Steer_Sensitivity") == 0)
+                {
+                    gSensitivity = atof(value);
+                    printf("  Set Steer_Sensitivity to %f\n", gSensitivity);
+                }
             }
         }
     }
@@ -1417,6 +1445,21 @@ void processSdlEvent(const SDL_Event *e)
                         else // This path is for triggers and other non-centering axes
                         {
                             newVal = (abs(e->gaxis.value) < deadZone) ? 0.0f : (float)e->gaxis.value / 32767.0f;
+                        }
+
+                        // Apply linear sensitivity
+                        if (gSensitivity != 1.0f)
+                        {
+                            // For centering axes (like thumbsticks), adjust around 0.5 center point
+                            if (gActionProperties[binding->player][binding->action].isCentering && !isTrigger)
+                            {
+                                // Adjust the deviation from center (0.5)
+                                float deviation = newVal - 0.5f;
+                                newVal = 0.5f + (deviation * gSensitivity);
+                            }
+
+                            // Clamp the value to valid range [0,1]
+                            newVal = fmaxf(0.0f, fminf(1.0f, newVal));
                         }
 
                         if (binding->isInverted)
@@ -1924,6 +1967,299 @@ void saveGuidsToIni()
 
     iniFree(ini);
     gPlayerGUIDsDirty = false;
+}
+/* Ensure SDL_Haptic* is opened and cached for index; returns NULL on failure */
+static SDL_Haptic *ensure_haptic_for_index(int idx)
+{
+    if (idx < 0 || idx >= MAX_JOYSTICKS)
+        return NULL;
+
+    SDL_Haptic *h = sdlJoysticks.haptics[idx];
+    if (h)
+        return h;
+
+    SDL_Joystick *joy = NULL;
+    if (sdlJoysticks.controllers[idx])
+        joy = SDL_GetGamepadJoystick(sdlJoysticks.controllers[idx]);
+    else
+        joy = sdlJoysticks.joysticks[idx];
+
+    if (!joy)
+        return NULL;
+
+    h = SDL_OpenHapticFromJoystick(joy);
+    if (!h)
+        return NULL;
+
+    if (SDL_InitHapticRumble(h) != 0)
+    {
+        SDL_CloseHaptic(h);
+        return NULL;
+    }
+
+    sdlJoysticks.haptics[idx] = h;
+    return h;
+}
+
+static void sdl_ffb_toggle(bool active)
+{
+    printf("FFB Toggle callback from SDL3: Active=%d\n", active);
+    return;
+}
+
+static void sdl_ffb_constant_force(uint8_t direction, uint8_t force)
+{
+    EmulatorConfig *config = getConfig();
+    if (!sdlInputInitialized)
+        return;
+
+    if (config->use_wheel == 0)
+    {
+        return;
+    }
+
+    uint16_t ffb_strength = config->constant_force_strength;
+    if (ffb_strength == 0)
+    {
+        return;
+    }
+    /* Map incoming 0..255 -> 0..ffb_strength -> signed level range (-32767..32767) */
+    double norm = (double)force / 127.0;
+    if (norm < 0.0) norm = 0.0;
+    if (norm > 1.0) norm = 1.0;
+
+    int32_t level = (int32_t)(norm * (double)ffb_strength * 327.67);
+    if (level > 32767) level = 32767;
+    if (level < 0) level = 0;
+
+    int32_t sdl_level = (int32_t)((direction == 0) ? -level : level);
+    if (config->showDebugMessages)
+        printf("FFB Constant Force: dir=%d force=%d -> level=%d\n", direction, force, sdl_level);
+    SDL_Haptic *h = ensure_haptic_for_index(0);
+    if (!h)
+        return;
+    SDL_HapticEffect eff;
+    memset(&eff, 0, sizeof(eff));
+    eff.type = SDL_HAPTIC_CONSTANT;
+    eff.constant.level = sdl_level;
+    eff.constant.length = SDL_HAPTIC_INFINITY;
+    eff.constant.attack_length = 0;
+    eff.constant.attack_level = 0;
+    eff.constant.fade_length = 0;
+    eff.constant.fade_level = 0;
+    eff.constant.direction.type = SDL_HAPTIC_CARTESIAN;
+    eff.constant.direction.dir[0] = (direction == 0) ? -1 : 1;
+
+    int existing_id = sdl_haptic_constant_effect_id;
+    if (existing_id >= 0)
+    {
+        if (SDL_UpdateHapticEffect(h, existing_id, &eff) == 0)
+        {
+            SDL_RunHapticEffect(h, existing_id, 1);
+            if (config->showDebugMessages)
+                printf("FFB constant updated (P1) level=%d\n", sdl_level);
+            return;
+        }
+        SDL_StopHapticEffect(h, existing_id);
+        SDL_DestroyHapticEffect(h, existing_id);
+        sdl_haptic_constant_effect_id = -1;
+    }
+
+    int new_id = SDL_CreateHapticEffect(h, &eff);
+    if (new_id >= 0)
+    {
+        sdl_haptic_constant_effect_id = new_id;
+        SDL_RunHapticEffect(h, new_id, 1);
+        if (config->showDebugMessages)
+            printf("FFB constant created (P1) level=%d\n", sdl_level);
+        return;
+    }
+    return;
+}
+
+static void sdl_ffb_rumble(uint8_t force, uint8_t period)
+{
+    EmulatorConfig *config = getConfig();
+    if (config->showDebugMessages)
+        printf("FFB Rumble callback from SDL3: Force=%d, Period=%d\n", force, period);
+    float strength = (float)force / 127.0f;
+    if (strength > 1.0f)
+        strength = 1.0f;
+
+    uint32_t duration_ms;
+
+
+    if (!sdlInputInitialized)
+        return;
+
+    int use_wheel = config->use_wheel;
+    if (!use_wheel)
+    {
+        //gamepad rumble
+        if (sdlJoysticks.controllers[0])
+        {
+            if (period != 0)
+                duration_ms = 0xFFFFFFFFu;
+            else
+                duration_ms = 0;
+            uint16_t motor_value = (uint16_t)(strength * 0xFFFF);
+            SDL_RumbleGamepad(sdlJoysticks.controllers[0], motor_value, motor_value, duration_ms);
+        }
+    }
+    else
+    {
+        // wheel rumble
+        SDL_Haptic *h = ensure_haptic_for_index(0);
+        if (!h)
+        {
+            if (config->showDebugMessages)
+                printf("FFB Wheel rumble: no haptic for P1\n");
+            return;
+        }
+
+        if (force == 0)
+        {
+            int id = sdl_haptic_rumble_effect_id;
+            if (id >= 0)
+            {
+                SDL_StopHapticEffect(h, id);
+                SDL_DestroyHapticEffect(h, id);
+                sdl_haptic_rumble_effect_id = -1;
+            }
+            return;
+        }
+        uint16_t ffb_strength = config->rumble_strength;
+        if (ffb_strength == 0)
+        {
+            return;
+        }
+        uint32_t ffb_duration = config->rumble_duration;
+
+        uint32_t duration = (uint32_t)((double)force * ffb_duration);
+        double norm = (double)force / 127.0;
+        if (norm < 0.0)
+            norm = 0.0;
+        if (norm > 1.0)
+            norm = 1.0;
+
+        int32_t magnitude = (int32_t)(norm * (double)ffb_strength * 327.67);
+        if (magnitude > 32767)
+            magnitude = 32767;
+        if (magnitude < 0)
+            magnitude = 0;
+
+        SDL_HapticEffect eff;
+        memset(&eff, 0, sizeof(eff));
+        eff.type = SDL_HAPTIC_SINE;
+        eff.periodic.length = SDL_HAPTIC_INFINITY;
+        eff.periodic.period = duration;
+        eff.periodic.magnitude = magnitude;
+        eff.periodic.offset = 0;
+        eff.periodic.phase = 0;
+        eff.periodic.direction.type = SDL_HAPTIC_CARTESIAN;
+        eff.periodic.direction.dir[0] = 1; /* X 轴 */
+
+        int existing_id = sdl_haptic_rumble_effect_id;
+        if (existing_id >= 0)
+        {
+            if (SDL_UpdateHapticEffect(h, existing_id, &eff) == 0)
+            {
+                SDL_RunHapticEffect(h, existing_id, 1);
+                return;
+            }
+            
+            SDL_StopHapticEffect(h, existing_id);
+            SDL_DestroyHapticEffect(h, existing_id);
+            sdl_haptic_rumble_effect_id = -1;
+        }
+
+        int new_id = SDL_CreateHapticEffect(h, &eff);
+        if (new_id >= 0)
+        {
+            sdl_haptic_rumble_effect_id = new_id;
+            SDL_RunHapticEffect(h, new_id, 1);
+            if (config->showDebugMessages)
+                printf("FFB Wheel periodic created (P1) mag=%d period=%d\n", eff.periodic.magnitude, eff.periodic.period);
+        }
+    }
+    return;
+}
+
+static void sdl_ffb_damper(uint8_t force)
+{
+    EmulatorConfig *config = getConfig();
+    if (config->showDebugMessages)
+        printf("FFB Damper callback from SDL3: Force=%d\n", force);
+    if (!sdlInputInitialized)
+        return;
+
+    if (config->use_wheel == 0)
+    {
+        return;
+    }
+
+    uint16_t ffb_strength = config->damper_strength;
+    if (ffb_strength == 0)
+        return;
+
+    SDL_Haptic *h = ensure_haptic_for_index(0);
+    if (!h)
+    {
+        if (config->showDebugMessages)
+            printf("FFB Damper: no haptic for P1\n");
+        return;
+    }
+    double norm = (double)force / 255.0;
+    if (norm < 0.0)
+        norm = 0.0;
+    if (norm > 1.0)
+        norm = 1.0;
+
+    uint32_t coeff = (uint32_t)(norm * (double)ffb_strength * 327.67);
+    if (coeff > 32767)
+        coeff = 32767;
+    if (coeff < -32768)
+        coeff = -32768;
+    SDL_HapticEffect eff;
+    memset(&eff, 0, sizeof(eff));
+    eff.type = SDL_HAPTIC_DAMPER;
+
+    eff.condition.right_sat[0] = 32767;
+    eff.condition.left_sat[0] = 32767;
+    eff.condition.right_coeff[0] = coeff;
+    eff.condition.left_coeff[0] = coeff;
+    eff.condition.deadband[0] = 0;
+    eff.condition.center[0] = 0;
+
+    eff.condition.direction.type = SDL_HAPTIC_CARTESIAN;
+    eff.condition.direction.dir[0] = 1; /* X 轴 */
+
+    /* 优先更新已有效果 */
+    int existing_id = sdl_haptic_damper_effect_id;
+    if (existing_id >= 0)
+    {
+        if (SDL_UpdateHapticEffect(h, existing_id, &eff) == 0)
+        {
+            SDL_RunHapticEffect(h, existing_id, 1);
+            if (config->showDebugMessages)
+                printf("FFB Damper updated (P1) coeff=%d\n", coeff);
+            return;
+        }
+        /* 更新失败 -> 删除并重建 */
+        SDL_StopHapticEffect(h, existing_id);
+        SDL_DestroyHapticEffect(h, existing_id);
+        sdl_haptic_damper_effect_id = -1;
+    }
+
+    int new_id = SDL_CreateHapticEffect(h, &eff);
+    if (new_id >= 0)
+    {
+        sdl_haptic_damper_effect_id = new_id;
+        SDL_RunHapticEffect(h, new_id, 1);
+        if (config->showDebugMessages)
+            printf("FFB Damper created (P1) coeff=%d\n", coeff);
+    }    
+    return;
 }
 
 #endif

@@ -2,6 +2,7 @@
 
 #include "driveBoard.h"
 #include "jvs.h"
+#include "ffb.h"
 
 #define DRIVEBOARD_READY 0x00
 #define DRIVEBOARD_NOT_INIT 0x11
@@ -39,7 +40,7 @@ ssize_t driveboardWrite(int fd, const void *buf, size_t count)
     }
 
     unsigned char *buffer = (unsigned char *)buf;
-
+    printf("FFB send cmd: 0x%02hhX\n", buffer[0]);
     switch (buffer[0])
     {
     case 0xFF:
@@ -65,40 +66,16 @@ ssize_t driveboardWrite(int fd, const void *buf, size_t count)
 
     case 0x80:
     {
-        if (buffer[1] == 0 && buffer[2] == 0)
-        {
-            force = 0;
-        }
-
-        if (buffer[1] == 1 && buffer[2] == 1)
-        {
-
-            if (steerValue >= 0.9 && force > 0)
-                break;
-
-            if (steerValue <= 0.1 && force < 0)
-                break;
-
-            steerValue += force;
-            setAnalogue(ANALOGUE_1, (int)(steerValue * 1024));
-        }
-
-        //printf("Driveboard move %f %f\n", steerValue, force);
+        ffb_req_toggle(buffer);
     }
     break;
 
     case 0x9e:
     case 0x84:
     {
+
+        ffb_req_constant_force(buffer);
         response = DRIVEBOARD_READY;
-
-        if (buffer[1] == 1)
-            force = ((-1 * ((double)buffer[2] / 128.0)) * 2) / 100;
-
-        if (buffer[1] == 0)
-            force = ((1 - ((double)buffer[2] / 128.0)) * 2) / 100;
-
-        //printf("Driveboard set force%f %f\n", steerValue, force);
     }
     break;
 
@@ -119,6 +96,16 @@ ssize_t driveboardWrite(int fd, const void *buf, size_t count)
                 response = DRIVEBOARD_READY;
             }
         }
+    }
+    break;
+    case 0x85: // Rumble Command
+    {
+        ffb_req_rumble(buffer);
+    }
+    break;
+    case 0x86:    
+    {
+        ffb_req_damper(buffer);
     }
     break;
 

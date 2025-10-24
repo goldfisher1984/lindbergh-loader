@@ -88,10 +88,8 @@ const ControlBinding gDefaultDrivingBindings[] = {
     {INPUT_TYPE_GAMEPAD_AXIS, 0, SDL_GAMEPAD_AXIS_LEFTX, AXIS_MODE_FULL, 0, false, PLAYER_1, LA_Steer},
     {INPUT_TYPE_GAMEPAD_AXIS, 0, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, AXIS_MODE_FULL, 0, false, PLAYER_1, LA_Gas},
     {INPUT_TYPE_GAMEPAD_AXIS, 0, SDL_GAMEPAD_AXIS_LEFT_TRIGGER, AXIS_MODE_FULL, 0, false, PLAYER_1, LA_Brake},
-    {INPUT_TYPE_GAMEPAD_BUTTON, 0, SDL_GAMEPAD_BUTTON_SOUTH, AXIS_MODE_DIGITAL, 0, false, PLAYER_2, LA_Boost},
-    {INPUT_TYPE_GAMEPAD_BUTTON, 0, SDL_GAMEPAD_BUTTON_EAST, AXIS_MODE_DIGITAL, 0, false, PLAYER_1, LA_BoostRight},
-    {INPUT_TYPE_GAMEPAD_BUTTON, 0, SDL_GAMEPAD_BUTTON_NORTH, AXIS_MODE_DIGITAL, 0, false, PLAYER_1, LA_ViewChange},
-    {INPUT_TYPE_GAMEPAD_BUTTON, 0, SDL_GAMEPAD_BUTTON_WEST, AXIS_MODE_DIGITAL, 0, false, PLAYER_1, LA_MusicChange},
+    {INPUT_TYPE_GAMEPAD_BUTTON, 0, SDL_GAMEPAD_BUTTON_SOUTH, AXIS_MODE_DIGITAL, 0, false, PLAYER_1, LA_Start},
+    {INPUT_TYPE_GAMEPAD_BUTTON, 0, SDL_GAMEPAD_BUTTON_EAST, AXIS_MODE_DIGITAL, 0, false, PLAYER_1, LA_ViewChange},
     {INPUT_TYPE_GAMEPAD_BUTTON, 0, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER, AXIS_MODE_DIGITAL, 0, false, PLAYER_2, LA_GearUp},
     {INPUT_TYPE_GAMEPAD_BUTTON, 0, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER, AXIS_MODE_DIGITAL, 0, false, PLAYER_2, LA_GearDown},
     {INPUT_TYPE_GAMEPAD_BUTTON, 0, SDL_GAMEPAD_BUTTON_DPAD_UP, AXIS_MODE_DIGITAL, 0, false, PLAYER_1, LA_Up},
@@ -376,6 +374,7 @@ void createDefaultControlsIni(const char *fileName)
     iniSetValue(ini, "Config", "Throttle_DeadZone", "8000");
     iniSetValue(ini, "Config", "ShakeIncreaseRate", "10.0");
     iniSetValue(ini, "Config", "ShakeDecayRate", "0.95");
+    iniSetValue(ini, "Config", "Steer_Sensitivity", "1.0");
 
     addBindingsToIni(ini, "Common", gDefaultCommonBindings, gDefaultCommonBindingsSize);
     addBindingsToIni(ini, "Digital", gDefaultDigitalBindings, gDefaultDigitalBindingsSize);

@@ -192,6 +192,11 @@ void setDefaultValues(EmulatorConfig *cfg)
     strcpy(cfg->dns_default, "0.0.0.0");
     strcpy(cfg->dns_router, "10.0.0.254");
     strcpy(cfg->keychip, "AAGX-01A99999999");
+    cfg->use_wheel = 0;
+    cfg->constant_force_strength = 100;
+    cfg->damper_strength = 100;
+    cfg->rumble_strength = 100;
+    cfg->rumble_duration = 1000;
 }
 
 static const char *getValue(const IniConfig *ini, const char *sectionName, const char *key)
@@ -473,8 +478,14 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
     getString(ini, "dns", "default", config->dns_default, 16);
     getString(ini, "dns", "router", config->dns_router, 16);
 
-    //[ keychip]
+    //[keychip]
     getString(ini, "keychip", "id", config->keychip, 16);
+
+    //[FFB]
+    getInt(ini, "FFB", "constantForceStrength", config->constant_force_strength);
+    getInt(ini, "FFB", "damperStrength", config->damper_strength);
+    getInt(ini, "FFB", "rumbleStrength", config->rumble_strength);
+    getInt(ini, "FFB", "rumbleDuration", config->rumble_duration);
 }
 
 int initConfig(const char *configFilePath)
