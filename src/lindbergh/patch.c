@@ -1586,7 +1586,6 @@ int initPatch()
                     int addr = 0x08332ABE;
                     for (int i = 0; i < count; i++)
                     {
-                        printf("formatted subnet: %s\n", subnet[i]);
                         patchMemoryFromString(addr, subnet[i]);
                         addr += 11;
                     }

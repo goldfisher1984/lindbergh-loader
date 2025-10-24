@@ -2157,7 +2157,7 @@ static void sdl_ffb_rumble(uint8_t force, uint8_t period)
         eff.periodic.offset = 0;
         eff.periodic.phase = 0;
         eff.periodic.direction.type = SDL_HAPTIC_CARTESIAN;
-        eff.periodic.direction.dir[0] = 1; /* X 轴 */
+        eff.periodic.direction.dir[0] = 1;
 
         int existing_id = sdl_haptic_rumble_effect_id;
         if (existing_id >= 0)
@@ -2232,9 +2232,8 @@ static void sdl_ffb_damper(uint8_t force)
     eff.condition.center[0] = 0;
 
     eff.condition.direction.type = SDL_HAPTIC_CARTESIAN;
-    eff.condition.direction.dir[0] = 1; /* X 轴 */
+    eff.condition.direction.dir[0] = 1;
 
-    /* 优先更新已有效果 */
     int existing_id = sdl_haptic_damper_effect_id;
     if (existing_id >= 0)
     {
@@ -2245,7 +2244,6 @@ static void sdl_ffb_damper(uint8_t force)
                 printf("FFB Damper updated (P1) coeff=%d\n", coeff);
             return;
         }
-        /* 更新失败 -> 删除并重建 */
         SDL_StopHapticEffect(h, existing_id);
         SDL_DestroyHapticEffect(h, existing_id);
         sdl_haptic_damper_effect_id = -1;

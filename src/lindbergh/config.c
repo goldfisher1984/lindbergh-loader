@@ -360,6 +360,12 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
     config->disableBuiltinFont = getInt(ini, "Graphics", "DISABLE_BUILTIN_FONT", config->disableBuiltinFont);
     config->disableBuiltinLogos = getInt(ini, "Graphics", "DISABLE_BUILTIN_LOGOS", config->disableBuiltinLogos);
 
+    if (config->gameGroup == GROUP_ID4_EXP || config->gameGroup == GROUP_ID4_JAP || config->gameGroup == GROUP_ID5)
+    {
+        config->fpsLimiter = 1;
+        config->fpsTarget = 59.6;
+    }
+
     // [Cursor]
     config->customCursorEnabled = getInt(ini, "Cursor", "CUSTOM_CURSOR_ENABLED", config->customCursorEnabled);
     getString(ini, "Cursor", "CUSTOM_CURSOR", config->customCursor, MAX_PATH_LENGTH);
