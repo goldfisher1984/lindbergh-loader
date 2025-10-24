@@ -1,4 +1,4 @@
-#include "libsegaapi.h"
+﻿#include "libsegaapi.h"
 
 #include <FAudio.h>
 #include <stdio.h>
@@ -370,28 +370,23 @@ int SEGAAPI_PlayWithSetup(void *hHandle, unsigned int dwNumSendRouteParams, Send
 PlaybackStatus SEGAAPI_GetPlaybackStatus(void *hHandle)
 {
     HANDLE_CHECK(hHandle, PLAYBACK_STATUS_INVALID);
-
     Buffer *buffer = (Buffer *)hHandle;
 
-    if (buffer->playbackStatus == PLAYBACK_STATUS_PAUSE)
-        return PLAYBACK_STATUS_PAUSE;
+    pthread_mutex_lock(&fAudioMutex);
 
     FAudioVoiceState fAudioVoiceState;
     FAudioSourceVoice_GetState(buffer->fAudioSourceVoice, &fAudioVoiceState, 0);
 
-    if (fAudioVoiceState.BuffersQueued == 0)
+    PlaybackStatus status = buffer->playbackStatus;
+
+    if (status == PLAYBACK_STATUS_ACTIVE && fAudioVoiceState.BuffersQueued == 0)
     {
-        return PLAYBACK_STATUS_STOP;
+        status = PLAYBACK_STATUS_STOP;
+        buffer->playbackStatus = status;
     }
 
-    if (!buffer->bDoContinuousLooping &&
-        fAudioVoiceState.SamplesPlayed >=
-            bytesToSamples(buffer, buffer->size < buffer->endOffset ? buffer->size : buffer->endOffset))
-    {
-        return PLAYBACK_STATUS_STOP;
-    }
-
-    return buffer->playbackStatus;
+    pthread_mutex_unlock(&fAudioMutex);
+    return status;
 }
 
 int SEGAAPI_SetFormat(void *hHandle, OutputFormat *pFormat)
@@ -793,6 +788,8 @@ int SEGAAPI_UpdateBuffer(void *hHandle, unsigned int dwStartOffset, unsigned int
     if (buffer->updateOutputFormat)
         return SEGA_SUCCESS;
 
+    pthread_mutex_lock(&fAudioMutex);
+
     FAudioSourceVoice_FlushSourceBuffers(buffer->fAudioSourceVoice);
 
     // memset(buffer->fAudioBuffer, 0, sizeof(FAudioBuffer));
@@ -815,6 +812,8 @@ int SEGAAPI_UpdateBuffer(void *hHandle, unsigned int dwStartOffset, unsigned int
     }
 
     FAudioSourceVoice_SubmitSourceBuffer(buffer->fAudioSourceVoice, &buffer->fAudioBuffer, NULL);
+
+    pthread_mutex_unlock(&fAudioMutex);
 
     return SEGA_SUCCESS;
 }
