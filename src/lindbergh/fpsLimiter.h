@@ -10,7 +10,6 @@ typedef struct
 } FpsLimit;
 
 void initFpsLimiter();
-long clockNow();
 void fpsLimiter(FpsLimit *stats);
 double calculateFps();
 void frameTiming();

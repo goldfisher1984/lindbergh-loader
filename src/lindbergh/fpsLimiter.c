@@ -1,81 +1,111 @@
-#include <stdio.h>
-#include <sys/time.h>
+﻿#include <stdio.h>
+#include <time.h>
 #include <unistd.h>
-
 #include "config.h"
 #include "fpsLimiter.h"
 
 FpsLimit fpsLimit;
-double lastTime = 0.0;
-int frameCount = 0;
-double fps = 0.0;
+static struct timespec nextFrameTime;
+
+static inline void clockNow(struct timespec *ts)
+{
+    clock_gettime(CLOCK_MONOTONIC_RAW, ts);
+}
+
+static inline long toMicro(const struct timespec *ts)
+{
+    return (long)(ts->tv_sec * 1000000L + ts->tv_nsec / 1000L);
+}
+
+static inline void addMicro(struct timespec *ts, long micro)
+{
+    ts->tv_nsec += (micro % 1000000L) * 1000L;
+    ts->tv_sec += micro / 1000000L;
+    if (ts->tv_nsec >= 1000000000L)
+    {
+        ts->tv_sec++;
+        ts->tv_nsec -= 1000000000L;
+    }
+}
 
 void initFpsLimiter()
 {
     if (getConfig()->fpsLimiter == 1)
     {
-        fpsLimit.targetFrameTime = 1000000 / getConfig()->fpsTarget;
-        fpsLimit.frameEnd = clockNow();
+        double targetFps = getConfig()->fpsTarget;
+
+        fpsLimit.targetFrameTime = (long)(1000000.0 / targetFps + 0.5);
+
+        clockNow(&nextFrameTime);
     }
-}
-
-double getTimeInMilliseconds()
-{
-    struct timeval time;
-    gettimeofday(&time, NULL);
-    return (time.tv_sec * 1000.0) + (time.tv_usec / 1000.0);
-}
-
-double getTimeInSeconds()
-{
-    struct timeval time;
-    gettimeofday(&time, NULL);
-    return (double)time.tv_sec + (double)time.tv_usec / 1000000.0;
-}
-
-double calculateFps()
-{
-    double currentTime = getTimeInSeconds();
-    double deltaTime = currentTime - lastTime;
-    frameCount++;
-    if (deltaTime >= 1.0)
-    {
-        fps = frameCount / deltaTime;
-        frameCount = 0;
-        lastTime = currentTime;
-    }
-    return fps;
-}
-
-long clockNow()
-{
-    struct timeval time_now;
-    gettimeofday(&time_now, NULL);
-    return time_now.tv_sec * 1000000L + time_now.tv_usec;
 }
 
 void frameTiming()
 {
-    fpsLimit.frameStart = clockNow();
-    fpsLimiter(&fpsLimit);
-    fpsLimit.frameEnd = clockNow();
+    struct timespec now;
+    clockNow(&now);
+
+    long currentMicro = toMicro(&now);
+    long targetMicro = toMicro(&nextFrameTime);
+
+    if (currentMicro < targetMicro)
+    {
+        long sleepMicro = targetMicro - currentMicro;
+        if (sleepMicro > 1000)
+        {
+            struct timespec sleepTime;
+            sleepTime.tv_sec = sleepMicro / 1000000L;
+            sleepTime.tv_nsec = (sleepMicro % 1000000L) * 1000L;
+
+            int ret = clock_nanosleep(CLOCK_MONOTONIC_RAW, 0, &sleepTime, NULL);
+            (void)ret;
+        }
+        else if (sleepMicro > 100)
+        {
+            usleep(sleepMicro - 50);
+        }
+        do
+        {
+            clockNow(&now);
+            currentMicro = toMicro(&now);
+        } while (currentMicro < targetMicro);
+    }
+
+    addMicro(&nextFrameTime, fpsLimit.targetFrameTime);
+
+    clockNow(&now);
+    long diffMicro = toMicro(&now) - toMicro(&nextFrameTime);
+    if (diffMicro > fpsLimit.targetFrameTime * 2)
+    {
+        nextFrameTime = now;
+        addMicro(&nextFrameTime, fpsLimit.targetFrameTime);
+    }
 }
 
 void fpsLimiter(FpsLimit *stats)
 {
-    stats->sleepTime = stats->targetFrameTime - (stats->frameStart - stats->frameEnd);
+    (void)stats;
+    frameTiming();
+}
 
-    if (stats->sleepTime > stats->frameOverhead)
+double calculateFps()
+{
+    static double lastTime = 0.0;
+    static int frameCount = 0;
+    static double fps = 0.0;
+
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    double currentTime = ts.tv_sec + ts.tv_nsec / 1e9;
+    double delta = currentTime - lastTime;
+    frameCount++;
+
+    if (delta >= 1.0)
     {
-        long adjustedSleep = stats->sleepTime - stats->frameOverhead;
-
-        usleep(adjustedSleep);
-
-        stats->frameOverhead = (clockNow() - stats->frameStart) - adjustedSleep;
-
-        if (stats->frameOverhead > stats->targetFrameTime / 2)
-        {
-            stats->frameOverhead = 0;
-        }
+        fps = frameCount / delta;
+        frameCount = 0;
+        lastTime = currentTime;
     }
+
+    return fps;
 }
