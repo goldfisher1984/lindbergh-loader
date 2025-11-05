@@ -2003,7 +2003,8 @@ static SDL_Haptic *ensure_haptic_for_index(int idx)
 
 static void sdl_ffb_toggle(bool active)
 {
-    printf("FFB Toggle callback from SDL3: Active=%d\n", active);
+    if (getConfig()->showDebugMessages)
+        printf("FFB Toggle callback from SDL3: Active=%d\n", active);
     return;
 }
 
@@ -2092,6 +2093,12 @@ static void sdl_ffb_rumble(uint8_t force, uint8_t period)
     if (!sdlInputInitialized)
         return;
 
+    uint16_t ffb_strength = config->rumble_strength;
+    if (ffb_strength == 0)
+    {
+        return;
+    }
+
     int use_wheel = config->use_wheel;
     if (!use_wheel)
     {
@@ -2102,7 +2109,7 @@ static void sdl_ffb_rumble(uint8_t force, uint8_t period)
                 duration_ms = 0xFFFFFFFFu;
             else
                 duration_ms = 0;
-            uint16_t motor_value = (uint16_t)(strength * 0xFFFF);
+            uint16_t motor_value = (uint16_t)(strength * 0xFFFF * (ffb_strength / 100.0));
             SDL_RumbleGamepad(sdlJoysticks.controllers[0], motor_value, motor_value, duration_ms);
         }
     }
@@ -2128,11 +2135,7 @@ static void sdl_ffb_rumble(uint8_t force, uint8_t period)
             }
             return;
         }
-        uint16_t ffb_strength = config->rumble_strength;
-        if (ffb_strength == 0)
-        {
-            return;
-        }
+
         uint32_t ffb_duration = config->rumble_duration;
 
         uint32_t duration = (uint32_t)((double)force * ffb_duration);
