@@ -10,3 +10,4 @@ struct dns_hook_entry
 
 bool match_domain(const char *target, const char *pattern);
 char **StrToAscii(char *src, int *output_count);
+void free_ascii_chunks(char **chunks, int count);

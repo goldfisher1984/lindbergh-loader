@@ -13,7 +13,6 @@
 #include <dlfcn.h>
 #include <netdb.h>
 #include "config.h"
-#include <arpa/inet.h>
 #include "dns.h"
 
 struct dns_hook_entry *dns_hook_entries;
@@ -42,7 +41,6 @@ int dns_hook_push(const char *from_src, const char *to_src)
 void dns_entry_init()
 {
     int ret = 0;
-    const struct dns_hook_entry *pos;
     ret = dns_hook_push("tenporouter.loc", getConfig()->dns_router);
     if (ret == -1)
         return;
@@ -142,4 +140,18 @@ char **StrToAscii(char *src, int *output_count)
     }
 
     return chunks;
+}
+
+void free_ascii_chunks(char **chunks, int count)
+{
+    if (chunks == NULL) {
+        return;
+    }
+    
+    for (int i = 0; i < count; i++) {
+        if (chunks[i] != NULL) {
+            free(chunks[i]);
+        }
+    }
+    free(chunks);
 }
