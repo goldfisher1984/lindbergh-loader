@@ -197,6 +197,10 @@ void setDefaultValues(EmulatorConfig *cfg)
     cfg->damper_strength = 100;
     cfg->rumble_strength = 100;
     cfg->rumble_duration = 1000;
+    cfg->enable_clock_hook = 0;
+    cfg->clock_override_hour = 0;
+    cfg->clock_override_minute = 0;
+    cfg->clock_override_second = 0;
 }
 
 static const char *getValue(const IniConfig *ini, const char *sectionName, const char *key)
@@ -481,17 +485,23 @@ void applyIniConfig(EmulatorConfig *config, const IniConfig *ini)
     }
     // [DNS]
     config->enable_dns = getInt(ini, "dns", "enable", config->enable_dns);
-    getString(ini, "dns", "default", config->dns_default, 16);
+    getString(ini, "dns", "default", config->dns_default, 255);
     getString(ini, "dns", "router", config->dns_router, 16);
 
     //[keychip]
     getString(ini, "keychip", "id", config->keychip, 16);
 
     //[FFB]
-    getInt(ini, "FFB", "constantForceStrength", config->constant_force_strength);
-    getInt(ini, "FFB", "damperStrength", config->damper_strength);
-    getInt(ini, "FFB", "rumbleStrength", config->rumble_strength);
-    getInt(ini, "FFB", "rumbleDuration", config->rumble_duration);
+    config->constant_force_strength = getInt(ini, "FFB", "constantForceStrength", config->constant_force_strength);
+    config->damper_strength = getInt(ini, "FFB", "damperStrength", config->damper_strength);
+    config->rumble_strength = getInt(ini, "FFB", "rumbleStrength", config->rumble_strength);
+    config->rumble_duration = getInt(ini, "FFB", "rumbleDuration", config->rumble_duration);
+
+    //[CLOCK]
+    config->enable_clock_hook = getInt(ini, "CLOCK", "enable", config->enable_clock_hook);
+    config->clock_override_hour = getInt(ini, "CLOCK", "override_hour", config->clock_override_hour);
+    config->clock_override_minute = getInt(ini, "CLOCK", "override_minute", config->clock_override_minute);
+    config->clock_override_second = getInt(ini, "CLOCK", "override_second", config->clock_override_second);
 }
 
 int initConfig(const char *configFilePath)

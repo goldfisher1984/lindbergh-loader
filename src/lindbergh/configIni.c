@@ -213,14 +213,25 @@ void createDefaultIni(const char *filePath)
 
     //[FFB]
     fprintf(file, "[FFB]\n");
-    fprintf(file, "Constant force strength, used for centering spring effect.\n");
+    fprintf(file, "Constant force strength (0-100), used for centering spring effect.\n");
     fprintf(file, "constantForceStrength = %d\n\n", defaults.constant_force_strength);
-    fprintf(file, "Damper strength, used for steering wheel damper effect.\n");
+    fprintf(file, "Damper strength (0-100), used for steering wheel damper effect.\n");
     fprintf(file, "damperStrength = %d\n\n", defaults.damper_strength);
-    fprintf(file, "Rumble strength, used for road surface effects.\n");
+    fprintf(file, "Rumble strength (0-100), used for road surface effects.\n");
     fprintf(file, "rumbleStrength = %d\n\n", defaults.rumble_strength);
-    fprintf(file, "Rumble duration factor from ms to µs, used to scale the duration of the rumble effect.\n");
+    fprintf(file, "Rumble duration (0-100) factor from ms to µs, used to scale the duration of the rumble effect.\n");
     fprintf(file, "rumbleDuration = %d\n\n", defaults.rumble_duration);
+
+    //[CLOCK]
+    fprintf(file, "[CLOCK]\n");
+    fprintf(file, "# If true, the loader will override the game start time\n");
+    fprintf(file, "enable = %s\n\n", defaults.enable_clock_hook ? "true" : "false");
+    fprintf(file, "# Override hour (0-23) of the game start time\n");
+    fprintf(file, "override_hour = %d\n\n", defaults.clock_override_hour);
+    fprintf(file, "# Override minute (0-59) of the game start time\n");
+    fprintf(file, "override_minute = %d\n\n", defaults.clock_override_minute);
+    fprintf(file, "# Override second (0-59) of the game start time\n");
+    fprintf(file, "override_second = %d\n", defaults.clock_override_second);
 
     fprintf(file, "\n");
     fclose(file);

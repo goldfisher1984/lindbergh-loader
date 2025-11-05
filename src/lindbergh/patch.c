@@ -152,6 +152,17 @@ int amDipswGetData(uint8_t *dip)
     return 0;
 }
 
+long generateTimeofDay(EmulatorConfig *config)
+{
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    tm_info->tm_hour = config->clock_override_hour;
+    tm_info->tm_min = config->clock_override_minute;
+    tm_info->tm_sec = config->clock_override_second;
+    long start_time = mktime(tm_info) * 1000;
+    return start_time;
+}
+
 int checkTrgOn(int param_1, long param_2)
 {
     const bool *keyboardState = SDL_GetKeyboardState(NULL);
@@ -188,6 +199,25 @@ void _putConsoleSeparate(char *separator, char *str)
         str++;
     }
     putchar('\n');
+}
+
+static void overrideSubnet(uintptr_t addr)
+{
+    int count;
+    EmulatorConfig *config = getConfig();
+    if (strstr(getConfig()->net_subnet, "0.0.0.0") != NULL)
+        return;
+
+    char **subnet = StrToAscii(config->net_subnet, &count);
+    if (subnet != NULL)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            patchMemoryFromString(addr, subnet[i]);
+            addr += 11;
+        }
+        free_ascii_chunks(subnet, count);
+    }
 }
 
 // Original snprintf in Outrun crashes sometimes so I replaced it
@@ -234,7 +264,7 @@ int patchedPuts(char *s)
 int initPatch()
 {
     EmulatorConfig *config = getConfig();
-    int GPUVendor = getConfig()->GPUVendor;
+    int GPUVendor = config->GPUVendor;
 
     if (config->enable_dns == 1)
     {
@@ -969,6 +999,11 @@ int initPatch()
             patchMemoryFromString(0x08799adc, "df");         // Skips initialization
             setVariable(0x085593c9, 0x000126e9);             // Avoid Full Screen set from Game
 
+            // Virtual Card
+            patchMemoryFromString(0x081F1E27, "24C77708");
+            patchMemoryFromString(0x08179BD3, "74");
+            detourFunction(0x085553A6, checkTrgOn);
+
             if (GPUVendor != NVIDIA_GPU)
             {
                 detourFunction(0x08078980, gl_MultiTexCoord2fARB);
@@ -1193,6 +1228,10 @@ int initPatch()
             patchMemoryFromString(0x087e9ebc, "3f36");       // Skips initialization
             setVariable(0x08599819, 0x000126e9);             // Avoid Full Screen set from Game
 
+            patchMemoryFromString(0x0820A911, "A8A07C08"); // enable virtual card
+            patchMemoryFromString(0x0819161F, "74");       // enable card behavior emulation
+            detourFunction(0x085957F6, checkTrgOn);
+
             if (GPUVendor != NVIDIA_GPU)
             {
                 detourFunction(0x0807a298, gl_MultiTexCoord2fARB);
@@ -1207,6 +1246,18 @@ int initPatch()
             }
             patchMemoryFromString(0x08588f73, "31C090"); // cgCreateProgram args argument to 0;
             detourFunction(0x08271cec, stubRetOne);      // isExistNewerSource (forces shader recompilation)
+            
+            if (config->enable_clock_hook)
+            {
+                long base_time = generateTimeofDay(config);
+                setVariable(0x08A0BC48, base_time);                // set ctimer::_nBaseOffset
+                patchMemoryFromString(0x0820A687, "909090909090"); // skip setting ctimer::_nBaseOffset
+            }
+
+            if (config->enableNetworkPatches == 1)
+            {
+                overrideSubnet(0x082423C8);
+            }
         }
         break;
         case INITIALD_4_REVG_SERVERBOX:
@@ -1439,6 +1490,11 @@ int initPatch()
             // amsInit
             detourFunction(0x08938530, stubRetZero); // Eliminates amsInit Function
 
+            // Built-in Card Emulation
+            patchMemoryFromString(0x0829254d, "88539e08");
+            patchMemoryFromString(0x081d7965, "74");
+            detourFunction(0x08794296, checkTrgOn);
+
             // Mesa Patches
             if (GPUVendor != NVIDIA_GPU)
             {
@@ -1455,21 +1511,26 @@ int initPatch()
             detourFunction(0x0807b6c0, gl_XGetProcAddressARB);
             patchMemoryFromString(0x08761cce, "00"); // Fix cutscenes
 
-            if (getConfig()->enableNetworkPatches && strcmp(getConfig()->idIpSeat1, "") != 0 && strcmp(getConfig()->idIpSeat2, "") != 0)
+            if (getConfig()->enableNetworkPatches)
             {
-                uint32_t ipSeat1, ipSeat2;
-                if (inet_pton(AF_INET, getConfig()->idIpSeat1, &ipSeat1) != 1 || inet_pton(AF_INET, getConfig()->idIpSeat2, &ipSeat2) != 1)
+                overrideSubnet(0x0834184E);
+                if (strcmp(getConfig()->idIpSeat1, "") != 0 && strcmp(getConfig()->idIpSeat2, "") != 0)
                 {
-                    printf("Check the IP addresses for ID games in the config file.\n");
-                    exit(1);
+                    uint32_t ipSeat1, ipSeat2;
+                    if (inet_pton(AF_INET, getConfig()->idIpSeat1, &ipSeat1) != 1 ||
+                        inet_pton(AF_INET, getConfig()->idIpSeat2, &ipSeat2) != 1)
+                    {
+                        printf("Check the IP addresses for ID games in the config file.\n");
+                        exit(1);
+                    }
+                    setVariable(0x0833e473, ipSeat1);
+                    setVariable(0x0833e46b, ipSeat2);
                 }
-                setVariable(0x0833e473, ipSeat1);
-                setVariable(0x0833e46b, ipSeat2);
-            }
-            if (getConfig()->id5ChineseLanguage)
-            {
-                securityBoardSetDipSwitch(1, 1);
-                securityBoardSetDipSwitch(2, 1);
+                if (getConfig()->id5ChineseLanguage)
+                {
+                    securityBoardSetDipSwitch(1, 1);
+                    securityBoardSetDipSwitch(2, 1);
+                }
             }
         }
         break;
@@ -1561,6 +1622,14 @@ int initPatch()
             patchMemoryFromString(0x081cf685, "74");             // enable card behavior emulation
             detourFunction(0x08776906, checkTrgOn);
 
+            if (config->enable_clock_hook)
+            {
+                long base_time = generateTimeofDay(config);
+                setVariable(0x08C82D98, base_time);                // set ctimer::_nBaseOffset
+                patchMemoryFromString(0x082844DE, "909090909090"); // skip setting ctimer::_nBaseOffset
+                patchMemoryFromString(0x0844027E, "909090909090"); // skip setting ctimer::_nBaseOffset
+            }
+
             // Mesa Patches
             if (GPUVendor != NVIDIA_GPU)
             {
@@ -1579,17 +1648,7 @@ int initPatch()
 
             if (config->enableNetworkPatches == 1)
             {
-                int count;
-                char **subnet = StrToAscii(config->net_subnet, &count);
-                if (subnet != NULL)
-                {
-                    int addr = 0x08332ABE;
-                    for (int i = 0; i < count; i++)
-                    {
-                        patchMemoryFromString(addr, subnet[i]);
-                        addr += 11;
-                    }
-                }
+                overrideSubnet(0x08332ABE);
             }
         }
         break;
@@ -1629,12 +1688,6 @@ int initPatch()
             //detourFunction(0x08078e3c, drawText);     // Hook onto DemoDraw::DrawTextA
             detourFunction(0x08114034, stubRetThree); // altrServer()
             patchMemoryFromString(0x0807fe5a, "e9e9000000"); // Skip network setup
-
-            if (config->enable_dns == 1)
-            {
-                printf("Patching DNS entries...\n");
-                dns_entry_init();
-            }
         }
         break;
         case INITIALD_5_JAP_REVC: // ID5 - DVP-0070C
@@ -1661,22 +1714,34 @@ int initPatch()
             detourFunction(0x08910645, amDongleIsAvailable);
             detourFunction(0x089110a9, amDongleUpdate);
             detourFunction(0x08911ac1, amDongleUserInfoEx);
-            memcpy(elfID, (void *)0x084e21e7, 4);    // Get gameID from the ELF
+            memcpy(elfID, (void *)0x084e21e7, 4); // Get gameID from the ELF
             amDipswContextAddr = (void *)0x093d91c8;
 
             detourFunction(0x089103d8, amDipswInit);
             detourFunction(0x0891045c, amDipswExit);
             detourFunction(0x08936289, amDipswGetData);
-            detourFunction(0x089104d1, amDipswSetLed);     // amDipswSetLed
-            detourFunction(0x08322268, stubRetOne);        // isEthLinkUp
-            patchMemoryFromString(0x0843fac8, "C0270900"); // tickInitStoreNetwork
-            // patchMemory(0x0843fed0, "e98d000000");  // tickWaitDHCP
-            detourFunction(0x08308472, stubRetOne);  // Skip Kickback initialization
-            detourFunction(0x084debbc, stubRetZero); // doesNeedRollerCleaning
-            detourFunction(0x084debd8, stubRetZero); // doesNeedStockerCleaning
-            patchMemoryFromString(0x089e3aac, "1af3"); // Skips initialization
+            detourFunction(0x089104d1, amDipswSetLed);         // amDipswSetLed
+            detourFunction(0x08322268, stubRetOne);            // isEthLinkUp
+            patchMemoryFromString(0x0843fac8, "C0270900");     // tickInitStoreNetwork
+            patchMemoryFromString(0x08440930, "e98d000000");   // tickWaitDHCP
+            detourFunction(0x08308472, stubRetOne);            // Skip Kickback initialization
+            detourFunction(0x084debbc, stubRetZero);           // doesNeedRollerCleaning
+            detourFunction(0x084debd8, stubRetZero);           // doesNeedStockerCleaning
+            patchMemoryFromString(0x089e3aac, "1af3");         // Skips initialization
             patchMemoryFromString(0x08789879, "e92601000090"); // Prevents Full Screen set from the game
-            patchMemoryFromString(0x084429f9, "eb60"); // tickInitAddress
+
+            patchMemoryFromString(0x084429f9, "eb60");     // tickInitAddress
+            patchMemoryFromString(0x0828575A, "A8A59B08"); // enable virtual card
+            patchMemoryFromString(0x081d05e5, "74");       // enable card behavior emulation
+            detourFunction(0x08777326, checkTrgOn);
+
+            if (config->enable_clock_hook)
+            {
+                long base_time = generateTimeofDay(config);
+                setVariable(0x08C82BB8, base_time);                // set ctimer::_nBaseOffset
+                patchMemoryFromString(0x0828551E, "909090909090"); // skip setting ctimer::_nBaseOffset
+                patchMemoryFromString(0x08440CDE, "909090909090"); // skip setting ctimer::_nBaseOffset
+            }
 
             // Mesa Patches
             if (GPUVendor != NVIDIA_GPU)
@@ -1693,6 +1758,11 @@ int initPatch()
             detourFunction(0x08389594, stubRetOne); // isExistNewerSource
             detourFunction(0x0807b370, gl_XGetProcAddressARB);
             patchMemoryFromString(0x08744d5e, "00"); // Fix cutscenes
+
+            if (config->enableNetworkPatches == 1)
+            {
+                overrideSubnet(0x083333AE);
+            }
         }
         break;
         case INITIALD_5_JAP_REVF: // ID5 - DVP-0070F

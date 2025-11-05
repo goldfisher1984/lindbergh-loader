@@ -16,6 +16,8 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <sys/ioctl.h>
+#include <sys/time.h>
+#include <unistd.h>
 
 #include "cardReader.h"
 #include "baseBoard.h"
@@ -760,6 +762,7 @@ FILE *fopen(const char *restrict pathname, const char *restrict mode)
                 exit(1);
             }
         }
+
     }
 
     if (strncmp(pathname, "/tmp/", 5) == 0 && gGrp == GROUP_ID5)
@@ -781,6 +784,15 @@ FILE *fopen(const char *restrict pathname, const char *restrict mode)
             phShowCursorInGame = false;
         else if (strstr(pathname, "/data/lua/stage/bonus_0") != NULL)
             phShowCursorInGame = true;
+    }
+    if (gGrp == GROUP_ID4_EXP || gGrp == GROUP_ID4_JAP || gGrp == GROUP_ID5)
+    {
+        if (strstr(pathname, ".crd") != NULL)
+        {
+            if (getConfig()->showDebugMessages)
+                printf("Hook card file to %s\n", getConfig()->cardFile1);
+            return _fopen(getConfig()->cardFile1, mode);
+        }
     }
     return _fopen(pathname, mode);
 }
@@ -1242,6 +1254,7 @@ int ioctl(int fd, unsigned long int request, ...)
     va_start(args, request);
     void *argp = va_arg(args, void *);
     va_end(args);
+    EmulatorConfig *config = getConfig();
 
     int (*_ioctl)(int fd, int request, void *data) = dlsym(RTLD_NEXT, "ioctl");
 
@@ -1269,8 +1282,8 @@ int ioctl(int fd, unsigned long int request, ...)
 
     // Replace "eth0" with your interface name set in the config file.
     if ((gGrp == GROUP_ID4_EXP || gGrp == GROUP_ID5 || gGrp == GROUP_IDAS_SB) &&
-        (request == SIOCGIFFLAGS || request == SIOCGIFADDR || request == SIOCGIFNETMASK) && getConfig()->enableNetworkPatches &&
-        strcmp(getConfig()->nicName, "") != 0)
+        (request == SIOCGIFFLAGS || request == SIOCGIFADDR || request == SIOCGIFNETMASK) && config->enableNetworkPatches &&
+        strcmp(config->nicName, "") != 0)
     {
         struct ifreq *ifr = (struct ifreq *)argp;
         strncpy(ifr->ifr_name, getConfig()->nicName, IFNAMSIZ);
@@ -1685,4 +1698,9 @@ int gethostbyname_r(const char *name, struct hostent *result_buf, char *buf, siz
     }
     ret = (int)_gethostbyname_r(name, result_buf, buf, buflen, result, h_errnop);
     return ret;
+}
+
+int settimeofday(const struct timeval *tv, const struct timezone *tz)
+{
+    return 0;
 }

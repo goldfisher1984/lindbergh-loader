@@ -333,6 +333,10 @@ typedef struct
     char dns_default[255];
     char dns_router[16];
     char keychip[16];
+    int enable_clock_hook;
+    int clock_override_hour;
+    int clock_override_minute;
+    int clock_override_second;
     int use_wheel;
     int constant_force_strength;
     int damper_strength;
