@@ -1,4 +1,4 @@
-#ifndef __i386__
+﻿#ifndef __i386__
 #define __i386__
 #endif
 #undef __x86_64__
@@ -193,19 +193,10 @@ void startSDL(int *argcp, char **argv)
 
     SDL_ShowWindow(sdlWindow);
 
-    Uint64 startTime = SDL_GetTicks();
-    int running = 1;
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    SDL_GL_SwapWindow(sdlWindow);
 
-    // We clear the window background
-    while (running)
-    {
-        if (SDL_GetTicks() - startTime >= 1000)
-            running = 0;
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-
-        SDL_GL_SwapWindow(sdlWindow);
-    }
 
     creatingWindow = false;
 
